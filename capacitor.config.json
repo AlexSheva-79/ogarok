@@ -1,0 +1,9 @@
+{
+  "appId": "com.alexsheva.ogarok",
+  "appName": "Восхождение Огарка",
+  "webDir": "www",
+  "backgroundColor": "#0a0610",
+  "android": {
+    "backgroundColor": "#0a0610"
+  }
+}

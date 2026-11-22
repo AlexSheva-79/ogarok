@@ -1,0 +1,77 @@
+# Собирает APK игры для Android при каждом обновлении main.
+# Готовый файл появляется на странице Releases (выпуск «APK — последняя версия»).
+name: Сборка APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Установить Capacitor
+        run: npm ci
+
+      - name: Собрать файлы игры
+        run: npm run build:web
+
+      - name: Создать Android-проект
+        run: |
+          npx cap add android
+          # иконки и заставка с Огарком
+          cp -r resources/android/res/. android/app/src/main/res/
+          # игра на весь экран: скрыть системные полосы
+          cp resources/android/java/MainActivity.java android/app/src/main/java/com/alexsheva/ogarok/MainActivity.java
+          # только вертикальный экран
+          sed -i 's/<activity/<activity android:screenOrientation="portrait"/' android/app/src/main/AndroidManifest.xml
+          # номер версии растёт с каждой сборкой, чтобы APK ставился поверх старого
+          sed -i "s/versionCode 1$/versionCode ${{ github.run_number }}/" android/app/build.gradle
+          sed -i "s/versionName \"1.0\"/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
+          npx cap sync android
+
+      - name: Собрать APK
+        run: |
+          # постоянный тестовый ключ: новые версии ставятся поверх старых без удаления
+          mkdir -p ~/.android
+          cp android-keystore/debug.keystore ~/.android/debug.keystore
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../ogarok.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ogarok-apk
+          path: ogarok.apk
+
+      - name: Выложить APK в Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: APK — последняя версия
+          body: |
+            Свежая сборка игры «Восхождение Огарка» для Android (сборка №${{ github.run_number }}).
+            Скачайте ogarok.apk на телефон и откройте его, чтобы установить.
+          files: ogarok.apk
+          make_latest: true
