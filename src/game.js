@@ -599,10 +599,6 @@
       circle(385, by, 105, (x, y) => tri(x + 6, y, 40, 0), () => { this.btn.right = true; }, () => { this.btn.right = false; });
       circle(W - 165, by - 10, 120, (x, y) => tri(x, y + 8, 46, -Math.PI / 2), () => this.press('jump'));
       circle(W - 390, by + 55, 78, (x, y) => tri(x, y - 4, 30, Math.PI / 2), () => this.press('door'));
-      circle(W - 390, by - 140, 78, (x, y) => {
-        g.lineStyle(5, 0xf1e3bd, 0.42).strokeCircle(x, y + 8, 14);
-        for (let i = 0; i < 3; i++) g.lineBetween(x - 18 + i * 18, y - 14, x - 22 + i * 22, y - 34);
-      }, () => this.press('spit'));
       this.ctlItems = items;
       this.applyButtons();
     }
@@ -643,6 +639,21 @@
       this.slotBg.on('pointerdown', () => this.useBonus());
       this.slotRing = this.add.graphics();
       c.add([this.slotBg, this.slotIcon, this.slotRing]);
+      // кнопка плевка — всегда видна, как ячейка бонуса
+      const px = sx, py = sy - 200, pr = 78;
+      const sp = this.add.graphics();
+      sp.fillStyle(0x000000, 0.28).fillCircle(px, py, pr);
+      sp.lineStyle(6, 0xd2463c, 0.75).strokeCircle(px, py, pr);
+      sp.fillStyle(0xd2463c, 0.85).fillCircle(px, py + 14, 17);
+      sp.lineStyle(7, 0xd2463c, 0.85);
+      for (let i = -1; i <= 1; i++) sp.lineBetween(px + i * 9, py - 2, px + i * 22, py - 34);
+      const spz = this.add.zone(px, py, pr * 2.3, pr * 2.3).setOrigin(0.5).setInteractive();
+      spz.on('pointerdown', () => {
+        if (this.mode !== 'play') return;
+        this.press('spit');
+        this.tweens.add({ targets: sp, alpha: 0.4, yoyo: true, duration: 90 });
+      });
+      c.add([sp, spz]);
       this.tMsg = this.add.text(W / 2, VH * 0.3, '', { fontFamily: FONT, fontSize: '64px', color: LIME, fontStyle: 'bold', stroke: '#000', strokeThickness: 10, align: 'center' }).setOrigin(0.5).setAlpha(0);
       c.add(this.tMsg);
       this.updateHud();
@@ -1150,7 +1161,7 @@
       parent.add([g, t, z]);
       return t;
     }
-    toggles(c, y) {
+    toggles(c, y, exit) {
       const label = (on, name) => name + (on ? ': вкл' : ': выкл');
       this.makeButton(c, W / 2 - 215, y, 400, 110, label(this.musicOn, 'Музыка'), (t) => {
         this.musicOn = !this.musicOn; store.set('music', this.musicOn); t.setText(label(this.musicOn, 'Музыка')); this.updateMusic();
@@ -1158,9 +1169,16 @@
       this.makeButton(c, W / 2 + 215, y, 400, 110, label(this.soundOn, 'Звуки'), (t) => {
         this.soundOn = !this.soundOn; store.set('sound', this.soundOn); t.setText(label(this.soundOn, 'Звуки'));
       }, { size: 42, fill: 0x1d1027 });
-      this.makeButton(c, W / 2, y + 130, 400, 110, label(this.buttonsOn, 'Кнопки'), (t) => {
+      this.makeButton(c, exit ? W / 2 - 215 : W / 2, y + 130, 400, 110, label(this.buttonsOn, 'Кнопки'), (t) => {
         this.buttonsOn = !this.buttonsOn; store.set('buttons', this.buttonsOn); t.setText(label(this.buttonsOn, 'Кнопки')); this.applyButtons();
       }, { size: 42, fill: 0x1d1027 });
+      if (exit) this.makeButton(c, W / 2 + 215, y + 130, 400, 110, 'Выход', () => this.exitGame(), { size: 46, fill: 0x3a0f14 });
+    }
+    exitGame() {
+      const App = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+      if (App && App.exitApp) { App.exitApp(); return; }
+      try { window.close(); } catch (e) { /* браузер не даёт закрыть вкладку */ }
+      this.message('Закройте вкладку браузера', BONE);
     }
 
     showMenu() {
@@ -1177,10 +1195,10 @@
       this.tweens.add({ targets: ti, scale: ti.scale * 1.03, yoyo: true, repeat: -1, duration: 1400, ease: 'Sine.easeInOut' });
       const y0 = VH * 0.6 + 170;
       this.makeButton(c, W / 2, y0, 560, 160, 'ИГРАТЬ', () => this.startGame(), { size: 76 });
-      this.toggles(c, y0 + 180);
+      this.toggles(c, y0 + 180, true);
       c.add(this.add.text(W / 2, y0 + 400, 'Рекорд: ' + this.best, { fontFamily: FONT, fontSize: '44px', color: GOLD, fontStyle: 'bold', stroke: '#000', strokeThickness: 6 }).setOrigin(0.5));
       c.add(this.add.text(W / 2, y0 + 490,
-        'Веди палец влево-вправо — идти, тап — прыжок,\nсвайп вниз — в дверь, свайп вверх — плевок.\nДоберись до Великой Свечи и зажги её!', {
+        'Веди палец влево-вправо — идти, тап — прыжок,\nсвайп вниз — в дверь, красная кнопка — плевок.\nДоберись до Великой Свечи и зажги её!', {
           fontFamily: FONT, fontSize: '32px', color: '#cbb894', align: 'center', lineSpacing: 6, stroke: '#000', strokeThickness: 4,
         }).setOrigin(0.5, 0));
     }
@@ -1215,7 +1233,7 @@
       this.makeButton(c, W / 2, y, 600, 150, 'ПРОДОЛЖИТЬ', () => this.resumeGame(), { size: 64 });
       this.makeButton(c, W / 2, y + 180, 600, 130, 'ЗАНОВО', () => { this.lives = Math.max(1, this.lives); this.startLevel(this.levelNo); }, { size: 54, fill: 0x1d1027 });
       this.makeButton(c, W / 2, y + 340, 600, 130, 'МЕНЮ', () => this.showMenu(), { size: 54, fill: 0x1d1027 });
-      this.toggles(c, y + 520);
+      this.toggles(c, y + 520, true);
     }
     resumeGame() {
       if (this.mode !== 'pause') return;
