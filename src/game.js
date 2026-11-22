@@ -516,14 +516,14 @@
 
     // Жесты: палец ведут влево/вправо — герой идёт туда же (как джойстик, где бы ни коснулся);
     // держишь палец — идёт дальше, повёл обратно — разворачивается. Тап — прыжок,
-    // быстрый свайп вверх — плевок, вниз — дверь. Второй палец может прыгать во время ходьбы.
+    // свайп вверх — тоже прыжок, свайп вниз — дверь. Плевок только красной кнопкой. Второй палец может прыгать во время ходьбы.
     setupGestures() {
       this.touches = {};
       const START = 34, TRAIL = 30;
       this.input.on('pointerdown', (p, over) => {
         if (over && over.length) return;
         if (this.mode !== 'play') return;
-        this.touches[p.id] = { x: p.x, y: p.y, ax: p.x, t: this.time.now, used: false, walk: 0, moved: 0 };
+        this.touches[p.id] = { x: p.x, y: p.y, ax: p.x, t: performance.now(), used: false, walk: 0, moved: 0 };
       });
       this.input.on('pointermove', (p) => {
         const g = this.touches[p.id];
@@ -531,9 +531,15 @@
         const dx = p.x - g.x, dy = p.y - g.y;
         g.moved = Math.max(g.moved, Math.hypot(dx, dy));
         if (!g.walk) {
-          if (this.time.now - g.t < 400 && Math.abs(dy) > 80 && Math.abs(dy) > Math.abs(dx) * 1.3) {
+          // рывок пальцем вверх — тоже прыжок; плевок только красной кнопкой
+          if (dy < -60 && -dy > Math.abs(dx) * 1.2) {
             g.used = true;
-            this.press(dy < 0 ? 'spit' : 'door');
+            this.press('jump');
+            return;
+          }
+          if (dy > 110 && dy > Math.abs(dx) * 1.3) {
+            g.used = true;
+            this.press('door');
             return;
           }
           if (Math.abs(dx) > START && Math.abs(dx) > Math.abs(dy) * 0.8) {
@@ -555,7 +561,8 @@
         const g = this.touches[p.id];
         if (!g) return;
         delete this.touches[p.id];
-        if (!g.used && !g.walk && this.time.now - g.t < 300 && g.moved < 34) this.press('jump');
+        // отпустил палец, не поведя его в сторону — прыжок (без ограничения по времени, чтобы не пропадал)
+        if (!g.used && !g.walk) this.press('jump');
       };
       this.input.on('pointerup', end);
       this.input.on('pointerupoutside', end);
